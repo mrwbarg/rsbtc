@@ -6,6 +6,9 @@ edition = "2024"
 [dependencies]
 chrono = { version = "0.4.45", features = ["serde"] }
 ciborium = "0.2.2"
+ecdsa = { version = "0.17.0", features = ["serde", "pem"] }
+hex = "0.4.3"
+k256 = { version = "0.14.0", features = ["serde", "pem"] }
 serde = { version = "1.0.229", features = ["derive"] }
 sha256 = "1.6.0"
 uint = "0.10.2"

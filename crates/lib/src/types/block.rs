@@ -1,9 +1,11 @@
 use crate::U256;
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use super::Transaction;
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Block {
     pub header: BlockHeader,
     pub transactions: Vec<Transaction>,
@@ -22,6 +24,7 @@ impl Block {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BlockHeader {
     pub timestamp: DateTime<Utc>,
     pub nonce: u64,
