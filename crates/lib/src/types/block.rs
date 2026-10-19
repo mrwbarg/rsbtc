@@ -1,4 +1,4 @@
-use crate::U256;
+use crate::{U256, sha256::Hash, util::MerkleRoot};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -19,8 +19,8 @@ impl Block {
         }
     }
 
-    pub fn hash(&self) -> ! {
-        todo!()
+    pub fn hash(&self) -> Hash {
+        Hash::hash(self)
     }
 }
 
@@ -28,8 +28,8 @@ impl Block {
 pub struct BlockHeader {
     pub timestamp: DateTime<Utc>,
     pub nonce: u64,
-    pub prev_block_hash: [u8; 32],
-    pub merkle_root: [u8; 32],
+    pub prev_block_hash: Hash,
+    pub merkle_root: MerkleRoot,
     pub target: U256,
 }
 
@@ -37,8 +37,8 @@ impl BlockHeader {
     pub fn new(
         timestamp: DateTime<Utc>,
         nonce: u64,
-        prev_block_hash: [u8; 32],
-        merkle_root: [u8; 32],
+        prev_block_hash: Hash,
+        merkle_root: MerkleRoot,
         target: U256,
     ) -> Self {
         BlockHeader {
@@ -50,7 +50,7 @@ impl BlockHeader {
         }
     }
 
-    pub fn hash(&self) -> ! {
-        todo!()
+    pub fn hash(&self) -> Hash {
+        Hash::hash(self)
     }
 }
