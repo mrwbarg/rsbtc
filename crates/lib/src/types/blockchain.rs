@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::block::Block;
@@ -14,11 +15,11 @@ use crate::{
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Blockchain {
-    pub utxos: HashMap<Hash, TransactionOutput>,
-    pub blocks: Vec<Block>,
-    pub target: U256,
+    utxos: HashMap<Hash, (bool, TransactionOutput)>,
+    blocks: Vec<Block>,
+    target: U256,
     #[serde(default, skip_serializing)]
-    pub mempool: Vec<Transaction>,
+    mempool: Vec<(DateTime<Utc>, Transaction)>,
 }
 
 impl Blockchain {
@@ -31,8 +32,24 @@ impl Blockchain {
         }
     }
 
+    pub fn utxos(&self) -> &HashMap<Hash, (bool, TransactionOutput)> {
+        &self.utxos
+    }
+
+    pub fn target(&self) -> U256 {
+        self.target
+    }
+
+    pub fn blocks(&self) -> impl Iterator<Item = &Block> {
+        self.blocks.iter()
+    }
+
     pub fn block_height(&self) -> u64 {
         self.blocks.len() as u64
+    }
+
+    pub fn mempool(&self) -> &[(DateTime<Utc>, Transaction)] {
+        &self.mempool
     }
 
     pub fn rebuild_utxos(&mut self) {
@@ -42,7 +59,8 @@ impl Blockchain {
                     self.utxos.remove(&input.prev_transaction_output_hash);
                 }
                 for output in transaction.outputs.iter() {
-                    self.utxos.insert(transaction.hash(), output.clone());
+                    self.utxos
+                        .insert(transaction.hash(), (false, output.clone()));
                 }
             }
         }
@@ -83,7 +101,7 @@ impl Blockchain {
             block.transactions.iter().map(|tx| tx.hash()).collect();
 
         self.mempool
-            .retain(|tx| !block_transactions.contains(&tx.hash()));
+            .retain(|(_, tx)| !block_transactions.contains(&tx.hash()));
 
         self.blocks.push(block);
         self.try_adjust_target();
@@ -133,5 +151,124 @@ impl Blockchain {
         };
 
         self.target = new_target.min(crate::MIN_TARGET);
+    }
+
+    pub fn add_to_mempool(&mut self, transaction: Transaction) -> Result<()> {
+        let mut known_inputs = HashSet::new();
+        for input in &transaction.inputs {
+            if !self.utxos.contains_key(&input.prev_transaction_output_hash) {
+                return Err(BtcError::InvalidTransaction);
+            }
+            if known_inputs.contains(&input.prev_transaction_output_hash) {
+                return Err(BtcError::InvalidTransaction);
+            }
+            known_inputs.insert(input.prev_transaction_output_hash);
+        }
+
+        for input in &transaction.inputs {
+            if let Some((true, _)) = self.utxos.get(&input.prev_transaction_output_hash) {
+                let referencing_transaction =
+                    self.mempool
+                        .iter()
+                        .enumerate()
+                        .find(|(_, (_, transaction))| {
+                            transaction
+                                .outputs
+                                .iter()
+                                .any(|output| output.hash() == input.prev_transaction_output_hash)
+                        });
+
+                if let Some((idx, (_, referencing_transaction))) = referencing_transaction {
+                    for input in &referencing_transaction.inputs {
+                        self.utxos
+                            .entry(input.prev_transaction_output_hash)
+                            .and_modify(|(marked, _)| {
+                                *marked = false;
+                            });
+                    }
+                    self.mempool.remove(idx);
+                } else {
+                    self.utxos
+                        .entry(input.prev_transaction_output_hash)
+                        .and_modify(|(marked, _)| {
+                            *marked = false;
+                        });
+                }
+            }
+        }
+
+        let all_inputs = transaction
+            .inputs
+            .iter()
+            .map(|input| {
+                self.utxos
+                    .get(&input.prev_transaction_output_hash)
+                    .expect("BUG: impossible")
+                    .1
+                    .value
+            })
+            .sum::<u64>();
+
+        let all_outputs = transaction.outputs.iter().map(|output| output.value).sum();
+
+        if all_inputs < all_outputs {
+            print!("inputs are lower than outputs");
+            return Err(BtcError::InvalidTransaction);
+        }
+
+        for input in &transaction.inputs {
+            self.utxos
+                .entry(input.prev_transaction_output_hash)
+                .and_modify(|(marked, _)| {
+                    *marked = true;
+                });
+        }
+
+        self.mempool.push((Utc::now(), transaction));
+        self.mempool.sort_by_key(|(_, transaction)| {
+            let all_inputs = transaction
+                .inputs
+                .iter()
+                .map(|input| {
+                    self.utxos
+                        .get(&input.prev_transaction_output_hash)
+                        .expect("BUG: impossible")
+                        .1
+                        .value
+                })
+                .sum::<u64>();
+
+            let all_outputs: u64 = transaction.outputs.iter().map(|output| output.value).sum();
+
+            let miner_fee = all_inputs - all_outputs;
+            miner_fee
+        });
+        Ok(())
+    }
+
+    pub fn cleanup_mempool(&mut self) {
+        let now = Utc::now();
+        let mut utxo_hashes_to_unmark: Vec<Hash> = vec![];
+        self.mempool.retain(|(timestamp, transaction)| {
+            if now - *timestamp
+                > chrono::Duration::seconds(crate::MAX_MEMPOOL_TRANSACTION_AGE as i64)
+            {
+                utxo_hashes_to_unmark.extend(
+                    transaction
+                        .inputs
+                        .iter()
+                        .map(|input| input.prev_transaction_output_hash),
+                );
+                false
+            } else {
+                true
+            }
+        });
+
+        for hash in utxo_hashes_to_unmark {
+            self.utxos.entry(hash).and_modify(|(marked, _)| {
+                *marked = false;
+            });
+        }
     }
 }
