@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 
-use crate::{U256, sha256::Hash, types::transaction::TransactionOutput, util::MerkleRoot};
+use crate::{
+    U256,
+    sha256::Hash,
+    types::transaction::TransactionOutput,
+    util::{MerkleRoot, Saveable},
+};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -13,6 +18,8 @@ pub struct Block {
     pub header: BlockHeader,
     pub transactions: Vec<Transaction>,
 }
+
+use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Result as IoResult, Write};
 
 impl Block {
     pub fn new(header: BlockHeader, transactions: Vec<Transaction>) -> Self {
@@ -148,6 +155,18 @@ impl Block {
         let input_value: u64 = inputs.values().map(|output| output.value).sum();
         let output_value: u64 = outputs.values().map(|output| output.value).sum();
         Ok(input_value - output_value)
+    }
+}
+
+impl Saveable for Block {
+    fn load<I: Read>(reader: I) -> IoResult<Self> {
+        ciborium::de::from_reader(reader)
+            .map_err(|_| IoError::new(IoErrorKind::InvalidData, "Failed to deserialize Block"))
+    }
+
+    fn save<O: Write>(&self, writer: O) -> IoResult<()> {
+        ciborium::ser::into_writer(self, writer)
+            .map_err(|_| IoError::new(IoErrorKind::InvalidData, "Failed to serialize Block"))
     }
 }
 

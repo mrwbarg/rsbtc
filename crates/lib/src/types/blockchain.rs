@@ -4,13 +4,15 @@ use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Result as IoResult, Write};
+
 use super::block::Block;
 use crate::{
     U256,
     error::{BtcError, Result},
     sha256::Hash,
     types::{Transaction, transaction::TransactionOutput},
-    util::MerkleRoot,
+    util::{MerkleRoot, Saveable},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -270,5 +272,17 @@ impl Blockchain {
                 *marked = false;
             });
         }
+    }
+}
+
+impl Saveable for Blockchain {
+    fn load<I: Read>(reader: I) -> IoResult<Self> {
+        ciborium::de::from_reader(reader)
+            .map_err(|_| IoError::new(IoErrorKind::InvalidData, "Failed to deserialize blockchain"))
+    }
+
+    fn save<O: Write>(&self, writer: O) -> IoResult<()> {
+        ciborium::ser::into_writer(self, writer)
+            .map_err(|_| IoError::new(IoErrorKind::InvalidData, "Failed to serialize blockchain"))
     }
 }
