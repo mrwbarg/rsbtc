@@ -1,14 +1,7 @@
-use std::env;
-use std::process::exit;
-
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use lib::crypto::PublicKey;
-use lib::network::Message;
-use lib::types::Block;
 use lib::util::Saveable;
-
-use tokio::net::TcpStream;
 
 use crate::miner::{Cli, Miner};
 
