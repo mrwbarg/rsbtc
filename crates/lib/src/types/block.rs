@@ -103,7 +103,7 @@ impl Block {
             return Err(BtcError::InvalidTransaction);
         }
 
-        let miner_fees = self.calculate_miner_fees(utxos)?;
+        let miner_fees = Self::calculate_miner_fees(&self.transactions[1..], utxos)?;
         let block_reward = crate::INITIAL_REWARD
             * 10u64.pow(8)
             * 2u64.pow((predicted_block_height / crate::HALVING_INTERVAL) as u32);
@@ -122,13 +122,13 @@ impl Block {
     }
 
     pub fn calculate_miner_fees(
-        &self,
+        transactions: &[Transaction],
         utxos: &HashMap<Hash, (bool, TransactionOutput)>,
     ) -> Result<u64> {
         let mut inputs: HashMap<Hash, TransactionOutput> = HashMap::new();
         let mut outputs: HashMap<Hash, TransactionOutput> = HashMap::new();
 
-        for transaction in self.transactions.iter().skip(1) {
+        for transaction in transactions {
             for input in &transaction.inputs {
                 let prev_output = utxos
                     .get(&input.prev_transaction_output_hash)
