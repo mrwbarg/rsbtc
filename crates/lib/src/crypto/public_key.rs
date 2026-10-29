@@ -9,7 +9,7 @@ use crate::util::Saveable;
 use spki::EncodePublicKey;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Result as IoResult, Write};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PublicKey(pub VerifyingKey<Secp256k1>);
 
 impl fmt::Debug for PublicKey {
