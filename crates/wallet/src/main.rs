@@ -1,9 +1,9 @@
 mod core;
+mod util;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use core::{Config, Core, FeeConfig, FeeType, Recipient};
-use kanal::bounded;
 use lib::types::Transaction;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -94,38 +94,13 @@ async fn run_cli(core: Arc<Core>) -> Result<()> {
     Ok(())
 }
 
-fn generate_dummy_config(path: &PathBuf) -> Result<()> {
-    let dummy_config = Config {
-        my_keys: vec![],
-        contacts: vec![
-            Recipient {
-                name: "Alice".to_string(),
-                key: PathBuf::from("alice.pub.pem"),
-            },
-            Recipient {
-                name: "Bob".to_string(),
-                key: PathBuf::from("bob.pub.pem"),
-            },
-        ],
-        default_node: "127.0.0.1:9000".to_string(),
-        fee_config: FeeConfig {
-            fee_type: FeeType::Percent,
-            value: 0.1,
-        },
-    };
-    let config_str = toml::to_string_pretty(&dummy_config)?;
-    std::fs::write(path, config_str)?;
-    println!("Dummy config generated at: {}", path.display());
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
         Some(Commands::GenerateConfig { output }) => {
-            return generate_dummy_config(output);
+            return util::generate_dummy_config(output);
         }
         None => {}
     }
