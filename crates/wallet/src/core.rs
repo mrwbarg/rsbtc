@@ -35,16 +35,12 @@ pub struct Recipient {
 impl Recipient {
     pub fn load(&self) -> Result<LoadedRecipient> {
         let key = PublicKey::load_from_file(&self.key)?;
-        Ok(LoadedRecipient {
-            name: self.name.clone(),
-            key,
-        })
+        Ok(LoadedRecipient { key })
     }
 }
 
 #[derive(Clone)]
 pub struct LoadedRecipient {
-    pub name: String,
     pub key: PublicKey,
 }
 
